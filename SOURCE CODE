@@ -1,0 +1,1177 @@
+constexpress = require('express');
+constrouter = express.Router();
+
+constmongoose = require('mongoose');
+constjwt = require('jsonwebtoken');
+constpath = require('path');
+constbcrypt = require('bcryptjs');
+letUsers = require(path.join(__dirname, '../models/index.js')).users;
+letAdmin = require(path.join(__dirname, '../models/index.js')).admin;
+letItems = require(path.join(__dirname, '../models/index.js')).items;
+letCategory = require(path.join(__dirname, '../models/index.js')).categories;
+constcheckLogin = require('./checkLogin');
+
+// Add Admin
+
+router.get('/admin/addAdmin', checkLogin, (req, res) => {
+  res.render('addAdmin');
+});
+
+router.post('/admin/addAdmin', checkLogin, (req, res) => {
+  Admin.findOne({ email:req.body.email }, (err, user) => {
+    if (err) {
+      res.json({ success:false, message:err });
+    } elseif (user) {
+      res.json({ success:false, message:'Email already exists' });
+    } else {
+      letadmin = newAdmin();
+      admin.fullname = req.body.fullname;
+      admin.email = req.body.email;
+      admin.password = req.body.password;
+      admin.password2 = req.body.password2;
+      admin.phone = req.body.phone;
+      admin.address = req.body.address;
+      admin.status = req.body.status;
+      if (admin.password !== admin.password2) {
+        res.json({ success:false, message:'Passwords do not match' });
+      } else {
+        admin.save((err) => {
+          if (err) {
+            res.json({ success:false, message:err });
+          } else {
+            req.flash('success', 'Admin added successfully');
+            res.redirect('/admin');
+          }
+        });
+      }
+    }
+  }).select('email');
+});
+
+// login admin
+
+router.get('/admin/adminlogin', (req, res) => {
+  res.render('adminLogin');
+});
+
+router.post('/admin/adminlogin', (req, res) => {
+  Admin.findOne({ email:req.body.email }, (err, user) => {
+    if (err) {
+      // res.json({ success: false, message: err });
+      req.flash('error', 'Something went wrong');
+      res.redirect('/admin/adminlogin');
+    } elseif (!user) {
+      // res.json({ success: false, message: 'User not found' });
+      req.flash('error', 'User not found');
+      res.redirect('/admin/adminlogin');
+    } elseif (user) {
+      if (user.password != req.body.password) {
+        // res.json({ success: false, message: 'Wrong password' });
+        req.flash('error', 'Wrong password');
+        res.redirect('/admin/adminlogin');
+      } else {
+        constpayload = { admin:user.email };
+        consttoken = jwt.sign(payload, 'secret', { expiresIn:'24h' });
+        res.cookie('token', token, { httpOnly:true });
+        // res.json({ success: true, message: 'User found', token: token });
+        res.redirect('/admin');
+      }
+    }
+  }).select('email password');
+});
+
+// get all data from users collection
+
+router.get('/admin', checkLogin, (req, res) => {
+  Users.find({}, function (err, data) {
+    if (err) res.json(err);
+    else
+      res.render('admin', {
+        user:data,
+      });
+  });
+});
+
+router.get('/admin/delete/:id', checkLogin, (req, res) => {
+  Users.findByIdAndRemove(req.params.id, (err) => {
+    if (err) res.json(err);
+    elseres.redirect('/admin');
+    req.flash('success', 'User deleted successfully');
+  }).select('email password');
+});
+
+router.get('/admin/editAdmin/:id', checkLogin, (req, res) => {
+  Users.findById(req.params.id, (err, user) => {
+    if (!err) {
+      res.render('editAdmin', {
+        data:user,
+      });
+    } else {
+      res.redirect('/admin');
+    }
+  });
+});
+
+router.post('/admin/editAdmin/:id', checkLogin, (req, res) => {
+  Users.findByIdAndUpdate(
+    req.params.id,
+    {
+      email:req.body.email,
+      fullname:req.body.fullname,
+      address:req.body.address,
+      phone:req.body.phone,
+      status:req.body.status,
+      password:bcrypt.hashSync(req.body.password, 10),
+      password2:bcrypt.hashSync(req.body.password2, 10),
+    },
+    (err) => {
+      if (err) res.json(err);
+      elseres.redirect('/admin');
+      req.flash('success', 'User updated');
+    }
+  ).select('email password');
+});
+
+// add user by admin
+
+router.get('/admin/addUser', checkLogin, (req, res) => {
+  res.render('addUser');
+});
+
+router.post('/admin/addUser', checkLogin, (req, res) => {
+  Users.findOne({ email:req.body.email }, (err, user) => {
+    if (err) {
+      res.json({ success:false, message:err });
+    } elseif (user) {
+      res.json({ success:false, message:'Email already exists' });
+    } else {
+      letuser = newUsers();
+      user.email = req.body.email;
+      //bycrypt password
+      user.password = bcrypt.hashSync(req.body.password, 10);
+      user.password2 = bcrypt.hashSync(req.body.password2, 10);
+      user.fullname = req.body.fullname;
+      user.address = req.body.address;
+      user.phone = req.body.phone;
+      user.status = req.body.status;
+      if (req.body.password != req.body.password2) {
+        res.json({ success:false, message:'Password not match' });
+      } else {
+        user.save((err) => {
+          if (err) {
+            res.json({ success:false, message:err });
+          } else {
+            res.redirect('/admin');
+            req.flash('success', 'User added');
+          }
+        });
+      }
+    }
+  });
+});
+
+// Admin Info
+
+router.get('/admin_form', checkLogin, (req, res) => {
+  Admin.find({}, (err, data) => {
+    if (err) res.json(err);
+    else
+      res.render('admin_form', {
+        user:data,
+      });
+  });
+});
+
+// Admin info delete
+
+router.get('/admin_form/delete/:id', checkLogin, (req, res) => {
+  Admin.findByIdAndRemove(req.params.id, (err) => {
+    if (err) res.json(err);
+    elseres.redirect('/admin_form');
+  }).select('email password');
+});
+
+//logout admin
+router.get('/admin/logout', (req, res) => {
+  res.clearCookie('token');
+  res.redirect('/admin/adminlogin');
+});
+
+// Product info
+
+router.get('/adminProduct', checkLogin, function (req, res) {
+  Items.find({}, function (err, data) {
+    if (err) res.json(err);
+    else
+      res.render('adminProduct', {
+        item:data,
+      });
+  });
+  // Category.find({}, function (err, data) {
+  //   if (err) res.json(err);
+  //   else
+  //     res.render('adminProduct', {
+  //       category: data,
+  //     });
+  // });
+});
+
+// product info edit
+
+router.get('/adminProduct/edit/:id', checkLogin, (req, res) => {
+  Items.findById(req.params.id, (err, item) => {
+    if (!err) {
+      res.render('editProduct', {
+        data:item,
+      });
+    } else {
+      res.redirect('/adminProduct');
+    }
+  });
+});
+
+router.post('/adminProduct/edit/:id', checkLogin, (req, res) => {
+  Items.findByIdAndUpdate(
+    req.params.id,
+    {
+      name:req.body.name,
+      price:req.body.price,
+      detail:req.body.detail,
+    },
+    (err) => {
+      if (err) {
+        console.log(err);
+        res.json(err);
+      } else {
+        res.redirect('/adminProduct');
+      }
+    }
+  ).select('name price description');
+});
+
+// Admin Product delete
+
+router.get('/adminProduct/delete/:id', checkLogin, (req, res) => {
+  Items.findByIdAndRemove(req.params.id, (err) => {
+    if (err) res.json(err);
+    elseres.redirect('/adminProduct');
+    req.flash('success', 'Product deleted');
+  }).select('email password');
+});
+
+// make isApproved false to true
+
+router.get('/admin/isApproved/:id', checkLogin, (req, res) => {
+  Users.findByIdAndUpdate(
+    req.params.id,
+    {
+      isApproved:true,
+    },
+    (err) => {
+      if (err) res.json(err);
+      elseres.redirect('/admin');
+      req.flash('success', 'User approved');
+    }
+  ).select('email password');
+})
+
+// make product status true
+
+router.get('/adminProduct/status/:id', checkLogin, (req, res) => {
+  Items.findByIdAndUpdate(
+    req.params.id,
+    {
+      status:true,
+    },
+    (err) => {
+      if (err) res.json(err);
+      elseres.redirect('/adminProduct');
+      req.flash('success', 'Product approved');
+    }
+  ).select('email password');
+})
+
+
+module.exports = router;
+
+
+5.2 Checklogin
+
+constjwt = require(‘jsonwebtoken’);
+
+constcheckLogin = (req, res, next) => {
+    consttoken = req.cookies.token;
+    if (!token) {
+        res.redirect(‘/admin/adminlogin’);
+    } else {
+        jwt.verify(token, ‘secret’, (err, decoded) => {
+        if (err) {
+            res.redirect(‘/admin/adminlogin’);
+        } else {
+            next();
+        }
+        });
+    }
+}
+
+module.exports = checkLogin;
+
+
+
+
+5.3 Contact
+const { error } = require('console');
+constexpress = require('express');
+constrouter = express.Router();
+constmongoose = require('mongoose');
+constpath = require('path');
+constnodemailer = require('nodemailer');
+letcheckAuthenticated = require('./functions.js').checkAuthenticated;
+
+// contact and feedback
+router.get('/contact', checkAuthenticated, (req, res) => {
+  res.render('contact');
+});
+
+// send feedback to admin email
+router.post('/contact', checkAuthenticated, (req, res) => {
+  letname = req.body.name;
+  letclint_mail = req.body.email;
+  letcontact = req.body.contact;
+  letmessage = req.body.message;
+
+  lettransporter = nodemailer.createTransport({
+    service:'gmail',
+    auth: {
+      user:process.env.MAIL_NAME,
+      pass:process.env.MAIL_PASS,
+    },
+  });
+
+  letmailOptions = {
+    from:'"' + name + '" <' + clint_mail + '>',
+    to:process.env.SENT_MAIL,
+    subject:'Feedback from ' + name,
+    text:'Contact: ' + contact + '\n\nMessage: ' + message,
+  };
+
+  transporter.sendMail(mailOptions, (err, info) => {
+    if (err) {
+      console.log(err);
+      req.flash('error', 'Something went wrong');
+    } else {
+      console.log('Email sent: ' + info.response);
+      req.flash('success', 'Email sent successfully');
+      res.redirect('/contact');
+    }
+  });
+});
+
+module.exports = router;
+
+
+5.4 Function
+functioncheckAuthenticated(req, res, next){
+    if(req.isAuthenticated()){
+        returnnext();
+    }
+    returnres.redirect('/login');
+}
+
+functioncheckNotAuthenticated(req, res, next){
+    if(req.isAuthenticated()){
+        returnres.redirect('/');
+    }
+    returnnext();
+    
+}
+
+module.exports = {checkAuthenticated, checkNotAuthenticated};
+
+5.5 Home
+constexpress = require('express');
+constrouter = express.Router();
+constpath  = require('path');
+constWebSocket = require('ws');
+constwss = newWebSocket.Server({ port:8080 });
+letItems = require(path.join(__dirname, '../models/index.js')).items;
+letBids = require(path.join(__dirname, '../models/index.js')).bids;
+letCategories = require(path.join(__dirname, '../models/index.js')).categories;
+letUsers = require(path.join(__dirname, '../models/index.js')).users;
+letSessions = require(path.join(__dirname, '../models/index.js')).sessions;
+
+letmessage = {
+    type:'noItem',
+    content: {
+        currentItem: [],
+        degree:0,
+        previousBidsUser: [],
+        current_price:0,
+    },
+    private: {
+        previousBids: [],
+    }
+}
+
+asyncfunctioncheckNewItem(){
+    letcheckNewItemId = setInterval(() => {
+        if(message.type === 'noItem'){
+            if(message.content.currentItem[0] !== undefined){
+                (async ()=>{
+                    letcheck = awaitItems.find({bidded:false}).sort({start_bid_date:1}).limit(5);
+                    if(check.length>0){
+                        pickItem();
+                    }
+               })();
+            }
+            else {
+               (async ()=>{
+                    letcheck = awaitItems.find({bidded:false}).sort({start_bid_date:1}).limit(5);
+                    if(check.length>0){
+                        pickItem();
+                    }
+               })();
+            }
+        }
+        elseif(message.type === 'inWait'){
+            (async ()=>{
+                letcheck = awaitItems.find({bidded:false}).sort({start_bid_date:1}).limit(5);
+                if(check.length>0){
+                    // if there is new item and bid date is less than the current item that in wait
+                    
+                    if(check[0]._id != message.content.currentItem[0]._id){
+                        if(check[0].start_bid_date<message.content.currentItem[0].start_bid_date){
+                            message.type = 'itemPlaced';
+                            broadcast();
+                            global.clearInterval(global.inWaitId);
+                            // replace the new one
+                            message.content.currentItem = check;
+                            setTimeout(() => {
+                                pickItem();
+                            }, 1000);
+                        }
+                    }
+                }
+           })();
+        }
+    }, 5000);
+}
+
+checkNewItem();
+
+asyncfunctionpickItem(){
+    try {
+        letcheck = awaitItems.find({bidded:false}).sort({start_bid_date:1}).limit(5);
+        letnoItemId; 
+        if(check.length>0){
+            message.content.currentItem = check;
+            message.content.previousBidsUser = [];
+            message.content.currentItem[0].start_bid_date;
+            // is there remain time for the current item to be started
+            if(message.content.currentItem[0].start_bid_date>= newDate().getTime()){ 
+                inWait();
+            }
+            else {
+                bidLoop();
+            }
+            message.content.current_price = check[0].price;
+        }
+        else {
+            // there is no item in queue to bid
+            noItem();
+        }
+    }
+    catch(err){
+        console.log(err);
+    }
+}
+
+pickItem();
+
+router.get('/profile', (req, res)=>{
+    (async ()=>{
+        try {
+           
+            if(message.type !== 'noItem'&&message.content.currentItem[0] !== undefined){
+                letloggedInUser = awaitreq.user;
+                letprevious_bids = [];
+                // select an item from db
+                letcurrentItem = message.content.currentItem;
+                letarr = [];
+                for (bidinmessage.content.previousBidsUser) {
+                    arr.push(bid);
+                }
+                for (letn=arr.length; n--; ){
+                    letprop = message.content.previousBidsUser[arr[n]];
+                    previous_bids.push(prop);
+                }
+                letcategory = awaitCategories.find({_id:currentItem[0].category_id});
+                letowner = awaitUsers.find({_id:currentItem[0].user_id});
+                letcurrentPrice = message.content.current_price;
+                letpreviousBids = message.content.previousBidsUser;
+                letstartBidDate = message.content.currentItem.start_bid_date
+                res.render('home', {currentItem, previousBids, category, owner, currentPrice, previous_bids, startBidDate, loggedInUser});
+            }
+            else{
+                letnoItem = true;
+                res.render('home', {noItem, loggedInUser:awaitreq.user});
+            }
+        }
+        catch(err){
+            console.log(err);
+        }
+    })();
+});
+
+// single products bid
+router.get('/profile/bid/:id', (req, res) => {
+    (async ()=>{
+        try {
+            letitem = awaitItems.find({_id:req.params.id});
+            letcategory = awaitCategories.find({_id:item[0].category_id});
+            letowner = awaitUsers.find({_id:item[0].user_id});
+            letprevious_bids = [];
+            letarr = [];
+            for (bidinmessage.content.previousBidsUser) {
+                arr.push(bid);
+            }
+            for (letn=arr.length; n--; ){
+                letprop = message.content.previousBidsUser[arr[n]];
+                previous_bids.push(prop);
+            }
+            letloggedInUser = awaitreq.user;
+            res.render('bid_page', {item, category, owner, previous_bids, loggedInUser});
+        }
+        catch(err){
+            console.log(err);
+        }
+    })();
+})
+
+functionbroadcast(){
+    wss.clients.forEach(functioneach(client) {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({type:message.type, content:message.content}));
+        }
+    });
+}
+
+functionnoItem(){
+    message.type = 'noItem';
+    broadcast();
+}
+
+letbidPlaced = false;
+functioninWait(itemPlaced){
+    message.type = 'inWait';
+    broadcast();
+     global.inWaitId = global.setInterval(()=>{
+        if(message.content.currentItem[0].start_bid_date<newDate().getTime()) {
+            global.clearInterval(inWaitId);
+            // bid start
+            bidPlaced = false;
+            bidLoop();
+        }
+    }, 1000);
+
+}
+
+functionbidLoop(){
+    leti = 0;
+    functionbidStart(){
+        i=0;
+        message.type = 'bidStart';
+        message.content.degree = i;
+        broadcast();
+        global.bidStartId = setInterval(() => {
+            message.content.degree = i;
+            // 360 is the circle timer degree   
+            if(bidPlaced){
+                global.clearInterval(bidStartId);
+                bidPlaced = false;
+                bidStart();
+                broadcast();
+            }
+            if(i>360) {
+                global.clearInterval(bidStartId);
+                // bonus time
+                message.type = 'bonusTime'
+                broadcast();
+                // start the bonus after 2s
+                setTimeout(() => {
+                    bonusStart();
+                }, 2000);
+            }
+            i++;
+        }, 300);
+    }
+
+    setTimeout(()=>{
+        bidStart();
+    }, 1000);
+
+    functionbonusStart(){
+        // bonus start
+        i = 0;
+        message.type = 'bonusStart';
+        global.bonusStartId = setInterval(() => {
+            if(i<= 360) {
+                message.content.degree = i;
+                if(i == 0){
+                    broadcast();
+                }
+            }
+            else {
+                global.clearInterval(bonusStartId);
+                // bonus time finished
+                message.content.degree = 0;
+                if(message.content.previousBidsUser.length>0){
+                    message.type = 'itemSold';
+                    broadcast();
+                    setTimeout(()=>{
+                        nextItem();
+                    }, 2000);
+                }
+                else {
+                    nextItem();
+                }
+                
+            }
+            i++;
+        }, 300);
+    }
+}
+
+// next item
+functionnextItem(){
+    message.type = 'nextItem';
+    broadcast();
+    (async()=>{
+        // if item sold
+        if(message.content.previousBidsUser.length>0){
+            // update the sold and bidded item
+            awaitItems.updateOne({_id:message.content.currentItem[0]._id}, {bidded:true, sold:true});
+            awaitBids.create({
+                item_id:message.content.currentItem[0]._id,
+                user_id:message.private.previousBids[message.private.previousBids.length-1].user_id,
+                price:message.content.current_price
+            });
+            // pick a new item in db
+            pickItem();
+        }
+        else {
+            awaitItems.updateOne({_id:message.content.currentItem[0]._id}, {bidded:true});
+            pickItem();
+        }
+        message.content.previousBidsUser = [];
+        message.content.current_price = 0;
+        
+    })();
+}
+
+wss.on('connection', functionconnection(ws, req) {
+        if(req.headers.cookie){
+            letcookie = decodeURIComponent(req.headers.cookie);
+            letstr = cookie.split('s:')[1];
+            letuserCookie = str.split('.')[0];
+            (async ()=>{
+                letcheckUser = awaitSessions.find({_id:userCookie});
+                if(checkUser.length>0){
+                    letexpireDate, found = false;
+                    for(leti=0; i<checkUser.length; i++){
+                        expireDate = Date.parse(checkUser[i].expires);
+                        // if session not expired
+                        if(expireDate>newDate().getTime()){
+                            found = true;
+                            if(JSON.parse(checkUser[i].session).passport){
+                                letuserId = JSON.parse(checkUser[i].session).passport.user;
+                                letuser = awaitUsers.find({_id:userId}, {_id:1, address:1, fullname:1});
+                                if(user.length>0)
+                                    ws.user = user;
+                                else
+                                    ws.user = undefined;
+                            }
+                            else
+                                ws.user = undefined;
+                        }
+                    }
+                    // if no session found in db
+                    if(!found)
+                        ws.user = undefined;
+                }
+                else
+                    ws.user = undefined;
+            })();
+        }
+        else
+            ws.user = undefined;
+
+    ws.on('message', functionincoming(data) {
+        letparsed = JSON.parse(data);
+        if((message.type == 'bidStart' || message.type == 'bonusStart') &&parseInt(parsed.price) >message.content.current_price){
+            if(ws.user !== undefined){
+                message.content.previousBidsUser.push({price:parsed.price, user_id:ws.user[0]._id ,fullname:ws.user[0].fullname, address:ws.user[0].address});
+                message.private.previousBids.push({price:parsed.price, user_id:ws.user[0]._id, address:ws.user[0].address, fullname:ws.user[0].fullname});
+                message.content.current_price = parseInt(parsed.price);
+                global.clearInterval(global.bidStartId);
+                global.clearInterval(global.bonusStartId);
+                message.type = 'bidPlaced';
+                broadcast();
+                
+                bidPlaced = true;
+                // start bid timer again 
+                bidLoop();
+            }
+        }
+    });
+    ws.send(JSON.stringify({type:message.type, content:message.content}));
+});
+
+module.exports = router;
+
+5.6 Login
+constexpress = require('express');
+constrouter = express.Router();
+constbcrypt = require('bcryptjs');
+constpassport = require('passport');
+constpath = require('path');
+letcheckNotAuthenticated = require('./functions.js').checkNotAuthenticated;
+letcheckAuthenticated = require('./functions.js').checkAuthenticated;
+letUsers = require(path.join(__dirname, '../models/index.js')).users;
+
+(async () => {
+  try {
+    letinitializePassport = require('./passport-config');
+    initializePassport(
+      passport,
+      (email) => {
+        return (async () => {
+          letuser = awaitUsers.find({ email:email });
+          if (user.length === 0) {
+            returnnull;
+          } else {
+            returnuser[0];
+          }
+        })();
+      },
+      (id) => {
+        return (async () => {
+          letuser = awaitUsers.find({ _id:id });
+          if (user.length === 0) {
+            returnnull;
+          } else {
+            returnuser[0];
+          }
+        })();
+      }
+    );
+    (isApproved) => {
+      return (async () => {
+        letuser = awaitUsers.find({ isApproved:isApproved });
+        if (user.length === 0) {
+          returnnull;
+        } else {
+          returnuser[0];
+        }
+      })();
+    };
+  } catch (error) {
+    console.log(error);
+  }
+})();
+
+router.get('/login', checkNotAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letlogin = true;
+      res.render('login', { login, login_errors:req.flash().error });
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+router.post(
+  '/login',
+  passport.authenticate('local', {
+    successRedirect:'/',
+    failureRedirect:'/login',
+    failureFlash:true,
+  })
+);
+
+router.get('/logout', checkAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      req.logOut();
+      res.redirect('/login');
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+router.get('/register', checkNotAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letregister = true;
+      res.render('login', { register });
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+router.post('/register', checkNotAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      leterrors = [];
+      letregister = true;
+      letsubmited = true;
+      if (
+        req.body.fullname == '' ||
+        req.body.email == '' ||
+        req.body.address == '' ||
+        req.body.phone == '' ||
+        req.body.password == '' ||
+        req.body.password2 == ''
+      ) {
+        errors.push('Please Fill All The Fields');
+      }
+      if (req.body.password !== req.body.password2) {
+        errors.push('Passwords Are Not Match');
+      }
+      letcheckEmail = awaitUsers.find({ email:req.body.email }, { _id:1 });
+      if (checkEmail.length>0) {
+        errors.push('Email Address Already Exist');
+      }
+      if (errors.length !== 0) {
+        res.render('login', { register, submited, errors });
+      } else {
+        letsuccess = 'Successfully Signed Up! Please Wait For Approval';
+        lethashPassword = bcrypt.hashSync(req.body.password, 10);
+        awaitUsers.create({
+          fullname:req.body.fullname,
+          email:req.body.email,
+          address:req.body.address,
+          phone:req.body.phone,
+          password:hashPassword,
+          status:req.body.status,
+        });
+        res.render('login', { register, submited, success });
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+module.exports = router;
+
+
+5.7 PassportCong.
+ constauthenticateUser = async (email, password, done) => {
+    constuser = awaitgetUserByEmail(email);
+    if (user == null) {
+      returndone(null, false, {
+        message:'Email Address or Password is Incorrect.',
+      });
+    }
+
+    try {
+      if (awaitbcrypt.compare(password, user.password)) {
+        if (user.isApproved == true) {
+          returndone(null, user);
+        } else {
+          returndone(null, false, { message:'User not approved yet' });
+        }
+      } else {
+        returndone(null, false, {
+          message:'Email Address or Password is Incorrect.',
+        });
+      }
+    } catch (e) {
+      returndone(e);
+    }
+  };
+
+  passport.use(newLocalStrategy({ usernameField:'email' }, authenticateUser));
+  passport.serializeUser((user, done) =>done(null, user._id));
+  passport.deserializeUser(async (id, done) => {
+    returndone(null, awaitgetUserById(id));
+  });
+}
+
+module.exports = initialize;
+
+
+5.8 Profile
+constexpress = require('express');
+constrouter = express.Router();
+constbcrypt = require('bcryptjs');
+constpassport = require('passport');
+constpath = require('path');
+letcheckAuthenticated = require('./functions.js').checkAuthenticated;
+letUsers = require(path.join(__dirname, '../models/index.js')).users;
+letItems = require(path.join(__dirname, '../models/index.js')).items;
+letCategories = require(path.join(__dirname, '../models/index.js')).categories;
+letBids = require(path.join(__dirname, '../models/index.js')).bids;
+//nodemailer
+constnodemailer = require('nodemailer');
+
+router.get('/', checkAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letloggedInUser = awaitreq.user;
+      letitems = awaitItems.find({ status:'true' }).sort({
+        _id: -1,
+      });
+      res.render('profile', { items, user:req.user, loggedInUser });
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+router.get('/profile/additem', checkAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letcategories = awaitCategories.find({});
+      letadditem = true;
+      res.render('profile', {
+        additem,
+        categories,
+        loggedInUser:awaitreq.user,
+      });
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+router.post('/profile/additem', checkAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letloggedInUser = awaitreq.user;
+      constmv = require('mv');
+      constformidable = require('formidable');
+      constform = formidable({ multiples:true });
+      form.parse(req, (err, fields, files) => {
+        letimagesToString = '',
+          newImageNames;
+        if (files.images[0]) {
+          for (leti = 0; i<files.images.length; i++) {
+            imagesToString += `${files.images[i].name},`;
+          }
+          newImageNames = imagesToString.substring(
+            0,
+            imagesToString.length - 1
+          );
+          for (leti = 0; i<files.images.length; i++) {
+            mv(
+              files.images[i].path,
+              path.join(__dirname, '../', '/*', '../public/uploads') +
+                '/' +
+                files.images[i].name,
+              function (err) {
+                if (err) throwerr;
+              }
+            );
+          }
+        } else {
+          newImageNames = files.images.name;
+          mv(
+            files.images.path,
+            path.join(__dirname, '../', '/*', '../public/uploads') +
+              '/' +
+              files.images.name,
+            function (err) {
+              if (err) throwerr;
+            }
+          );
+        }
+
+        (async () => {
+          if (fields.start_bid_date == '1m') {
+            fields.start_bid_date = newDate().getTime() + 60000;
+          } elseif (fields.start_bid_date == '1h') {
+            fields.start_bid_date = newDate().getTime() + 3600000;
+          } elseif (fields.start_bid_date == '5m') {
+            fields.start_bid_date = newDate().getTime() + 300000;
+          } elseif (fields.start_bid_date == '1d') {
+            fields.start_bid_date = newDate().getTime() + 86400000;
+          }
+          awaitItems.create({
+            user_id:loggedInUser._id,
+            name:fields.name,
+            detail:fields.detail,
+            price:fields.price,
+            images:newImageNames,
+            category_id:fields.category,
+            start_bid_date:fields.start_bid_date,
+          });
+          res.redirect('/profile');
+        })();
+      });
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+router.get('/profile/showbid/:id', checkAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letparam = req.params.id;
+      letitem = awaitItems.find({ _id:param });
+
+      if (item.length>0) {
+        letbid = awaitBids.find({ item_id:item[0]._id });
+        if (bid.length>0) {
+          letuser = awaitUsers.find({ _id:bid[0].user_id });
+          if (user.length>0) {
+            letshowBid = true;
+            res.render('profile', {
+              user,
+              item,
+              bid,
+              showBid,
+              loggedInUser:req.user,
+            });
+          } else {
+            res.end('page not found');
+          }
+        } else {
+          res.end('page not found');
+        }
+      } else {
+        res.end('page not found');
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+// my profile page
+router.get('/myprofile', checkAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letloggedInUser = awaitreq.user;
+      letmyprofile = true;
+      res.render('myProfile', { myprofile, loggedInUser });
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+});
+
+// show my items
+router.get('/profile/myProduct', checkAuthenticated, (req, res) => {
+  (async () => {
+    try {
+      letloggedInUser = awaitreq.user;
+      letmyitems = true;
+      letitems = awaitItems.find({ user_id:loggedInUser._id });
+      res.render('myProduct', { myitems, items, loggedInUser });
+    } catch (err) {
+      console.log(err);
+    }
+  })();
+})
+
+// send mail to admin for product rebid
+router.post('/requestReBid', checkAuthenticated, (req, res) => {
+  letp_id = req.body._id;
+  letp_name = req.body.name;
+  letprice = req.body.price;
+  letmessage = req.body.message;
+
+  lettransporter = nodemailer.createTransport({
+    service:'gmail',
+    auth: {
+      user:'process.env.MAIL_NAME',
+      pass:'process.env.MAIL_PASS',
+    },
+  });
+
+  letmailOptions = {
+    from:'"' + p_name + '" <' + p_id + '>',
+    to:'process.env.SENT_MAIL',
+    subject:'Edit Product ' + p_name + '\nProduct id\n' + p_id,
+    text:'product name: ' + p_name+ '\n\nProduct price: ' + price + '\n\nMessage: ' + message ,
+  };
+
+  transporter.sendMail(mailOptions, (err, info) => {
+    if (err) {
+      console.log(err);
+      req.flash('error', 'Something went wrong');
+    } else {
+      console.log('Email sent: ' + info.response);
+      req.flash('success', 'Request sent successfully');
+      res.redirect('/requestReBid/:id');
+    }
+  });
+});
+
+// get request rebid
+router.get('/requestReBid/:id', checkAuthenticated, (req, res) => {
+  Items.findById(req.params.id, (err, item) => {
+    if (!err) {
+      res.render('requestReBid', {
+        data:item,
+      });
+    } else {
+      res.redirect('/profile/myProduct');
+    }
+  });
+});
+
+// request credit
+router.get('/requestCredit/:id', checkAuthenticated, (req, res) => {
+  Users.findById(req.params.id, (err, user) => {
+    if (!err) {
+      res.render('requestCredit', {
+        data:user,
+      });
+    } else {
+      res.redirect('/myprofile');
+    }
+  });
+})
+
+// send mail to admin for credit request
+router.post('/requestCredit', checkAuthenticated, (req, res) => {
+  letid = req.body._id;
+  letname = req.body.name;
+  letemail = req.body.email;
+  letmessage = req.body.message;
+
+  lettransporter = nodemailer.createTransport({
+    service:'gmail',
+    auth: {
+      user:process.env.MAIL_NAME,
+      pass:process.env.MAIL_PASS,
+    },
+  });
+
+  letmailOptions = {
+    from:'"' + name + '" <' + email + '>',
+    to:process.env.SENT_MAIL,
+    subject:'Credit Request from + ' + name,
+    text:'Name: ' + name + '\n\nId: ' + id + '\n\nEmail: ' + email + '\n\nReqested for: ' + message + ' credit',
+  };
+
+  transporter.sendMail(mailOptions, (err, info) => {
+    if (err) {
+      console.log(err);
+      req.flash('error', 'Something went wrong');
+    } else {
+      console.log('Email sent: ' + info.response);
+      req.flash('success', 'Request sent successfully');
+      res.redirect('/requestCredit/:id');
+    }
+  });
+});
+
+module.exports = router;
